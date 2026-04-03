@@ -1,2 +1,4 @@
 # Local environment file
 .env
+# Local JS env config
+site/js/env-config.js

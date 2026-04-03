@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/env-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  </head>
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <main class="w-full max-w-2xl p-6 bg-white rounded shadow">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-semibold">Perfil</h1>
+        <button id="signout-btn" class="px-3 py-2 bg-red-600 text-white rounded">Sair</button>
+      </div>
+
+      <section id="profile-section" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-gray-50 rounded">
+          <h2 class="font-medium">Dados do usuário</h2>
+          <p id="user-id" class="text-sm text-gray-700 mt-2"></p>
+          <p id="user-email" class="text-sm text-gray-700"></p>
+        </div>
+        <div class="p-4 bg-gray-50 rounded">
+          <h2 class="font-medium">Metadados</h2>
+          <pre id="user-meta" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+        </div>
+      </section>
+
+      <div id="profile-error" class="text-sm text-red-600 mt-4"></div>
+    </main>
+
+    <script src="js/auth.js"></script>
+  </body>
+</html>

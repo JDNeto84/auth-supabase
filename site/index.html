@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sign In</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/env-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  </head>
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <main class="w-full max-w-md p-6 bg-white rounded shadow">
+      <h1 class="text-2xl font-semibold mb-4">Entrar</h1>
+
+      <form id="signin-form" class="space-y-4" aria-label="Formulário de login">
+        <div>
+          <label for="signin-email" class="block text-sm font-medium text-gray-700">Email</label>
+          <input id="signin-email" name="email" type="email" required class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+        <div>
+          <label for="signin-password" class="block text-sm font-medium text-gray-700">Senha</label>
+          <input id="signin-password" name="password" type="password" required minlength="6" class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+
+        <div class="flex items-center justify-between">
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Entrar</button>
+          <div class="space-x-2">
+            <a href="signup.html" class="text-sm text-blue-600 hover:underline">Criar conta</a>
+            <a href="forgot.html" class="text-sm text-blue-600 hover:underline">Esqueci a senha</a>
+          </div>
+        </div>
+
+        <div id="signin-error" role="alert" class="text-sm text-red-600"></div>
+      </form>
+
+      <hr class="my-6" />
+
+      <p class="text-sm text-gray-600">As credenciais do Supabase foram pré-configuradas para testes locais.</p>
+
+    </main>
+
+    <script src="js/auth.js"></script>
+  </body>
+</html>

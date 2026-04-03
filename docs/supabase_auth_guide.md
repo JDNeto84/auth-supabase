@@ -157,3 +157,54 @@ O Supabase está em transição para um novo formato de chaves para aumentar a s
 4.  **Diferenciação de Chaves**:
     *   **Anon Key**: Use no Front-end. Respeita o RLS.
     *   **Service Role Key**: Use **apenas** no Back-end. Ignora o RLS. **Nunca exponha esta chave.**
+
+## Implementação de Sign In / Sign Up (Frontend estático)
+
+Este projeto já inclui um helper cliente em [site/js/auth.js](site/js/auth.js#L1) que encapsula chamadas ao SDK `supabase-js` e é compatível com as versões v1/v2 do SDK.
+
+Passos principais para o fluxo de autenticação no frontend:
+
+- **Configurar chaves**: Para desenvolvimento local, adicione `SUPABASE_URL` e `SUPABASE_ANON_KEY` no arquivo `site/js/env-config.js` (ou em `localStorage`) para que o cliente seja inicializado. O projeto inclui um arquivo de exemplo `site/js/env-config.js` que popula o `localStorage` automaticamente quando preenchido.
+- **Configurar chaves**: Para desenvolvimento local, adicione `SUPABASE_URL` e `SUPABASE_ANON_KEY` no arquivo `site/js/env-config.js` (ou em `localStorage`) para que o cliente seja inicializado. O projeto inclui um arquivo de exemplo `site/js/env-config.example.js` — copie para `site/js/env-config.js` e preencha os valores.
+  Observação: o script gerador automático foi removido; atualmente a cópia é manual.
+- **Sign Up**: O formulário em [site/signup.html](site/signup.html#L1) envia `email` e `password` para a função `auth.signUp` via o helper `auth.js`. Se a opção de confirmação por email estiver ativada no dashboard Supabase, o usuário receberá um email para verificar a conta antes de poder se autenticar.
+- **Sign In**: O formulário em [site/index.html](site/index.html#L1) envia `email` e `password` para `auth.signIn`/`auth.signInWithPassword` conforme a versão do SDK. Em caso de sucesso, o helper redireciona para [site/profile.html](site/profile.html#L1).
+- **Esqueci a senha / Reset**: O formulário em [site/forgot.html](site/forgot.html#L1) chama `resetPasswordForEmail` (com `redirectTo` apontando para `reset-password.html`). O arquivo [site/reset-password.html](site/reset-password.html#L1) executa `setSessionFromUrl()` e permite atualizar a senha via `auth.updateUser`.
+- **Magic Link**: O projeto suporta tanto senha quanto magic link. Para habilitar magic links, ative a opção no dashboard Supabase e use `signIn` com `email` apenas (o helper `auth.js` pode ser estendido para chamar `signIn({ email }, { redirectTo })`).
+
+Exemplo mínimo usando o helper existente (resumido):
+
+```js
+// Precondição: site/js/env-config.js preencheu localStorage com SUPABASE_URL/ANON
+// auth.js inicializa o cliente automaticamente. Então apenas submeta o form:
+// Sign up
+// (já implementado em site/signup.html -> #signup-form)
+
+// Sign in
+// (já implementado em site/index.html -> #signin-form)
+
+// Forgot password
+// (site/forgot.html -> #forgot-form) -> envia email com redirectTo = /reset-password.html
+
+// Reset password
+// (site/reset-password.html -> #reset-form) -> setSessionFromUrl + updateUser
+```
+
+Referência: a documentação oficial de senhas do Supabase está em https://supabase.com/docs/guides/auth/passwords
+
+### Redirect URLs (importante)
+
+Garanta que as URLs de redirecionamento do projeto no Dashboard do Supabase incluam ao menos:
+
+- `http://localhost:8000/reset-password.html` (ou seu domínio local)
+- `http://localhost:8000/profile.html` (se você redirecionar para a página de perfil)
+
+Sem essas URLs, os links de redefinição e magic links não serão aceitos pelo Supabase.
+
+### Checklist de verificação rápida (dev)
+
+1. Preencha `site/js/env-config.js` com `SUPABASE_URL` e `SUPABASE_ANON_KEY` (ou salve-os manualmente no `localStorage`).
+2. Reinicie o servidor estático (por exemplo: `python3 -m http.server 8000 --directory site`).
+3. Acesse `http://localhost:8000` e tente criar uma conta via `Criar conta`.
+4. Se ativou confirmação por email, verifique o email; caso contrário, faça login e confirme que `profile.html` mostra os dados do usuário.
+5. Teste o fluxo de recuperação: envie email via `Esqueci a senha`, abra o link recebido e altere a senha.
