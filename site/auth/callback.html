@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Autenticando...</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../js/env-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  </head>
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <main class="w-full max-w-md p-6 bg-white rounded shadow text-center">
+      <div id="status-loading">
+        <p class="text-gray-600">Finalizando autenticação...</p>
+      </div>
+      <div id="status-error" class="hidden">
+        <p class="text-red-600 mb-4" id="error-message"></p>
+        <a href="../index.html" class="text-sm text-blue-600 hover:underline">Voltar ao login</a>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        function showError(msg) {
+          document.getElementById('status-loading').classList.add('hidden');
+          var errEl = document.getElementById('status-error');
+          errEl.classList.remove('hidden');
+          document.getElementById('error-message').textContent = msg || 'Erro durante autenticação.';
+        }
+
+        var env = window.__ENV || {};
+        var supabaseUrl = env.SUPABASE_URL || localStorage.getItem('SUPABASE_URL');
+        var supabaseKey = env.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY');
+
+        if (!supabaseUrl || !supabaseKey) {
+          return showError('Credenciais do Supabase não encontradas.');
+        }
+
+        var client;
+        try {
+          // supabase-js CDN exposes supabase.createClient (namespace)
+          var factory = (window.supabase && window.supabase.createClient)
+            ? window.supabase.createClient
+            : (typeof createClient === 'function' ? createClient : null);
+
+          if (!factory) return showError('Biblioteca Supabase não carregada.');
+
+          // detectSessionInUrl: true (default) — supabase-js automatically reads
+          // the #access_token / ?code from the URL and sets the session.
+          // We just need to wait for the SIGNED_IN event.
+          client = factory(supabaseUrl, supabaseKey);
+        } catch (e) {
+          return showError('Erro ao inicializar Supabase: ' + e.message);
+        }
+
+        // Timeout: if nothing happens in 10s, show error
+        var timeout = setTimeout(function () {
+          showError('Tempo esgotado. Tente fazer login novamente.');
+        }, 10000);
+
+        // supabase-js handles detectSessionInUrl automatically on createClient.
+        // Listen for the resulting SIGNED_IN event and redirect.
+        var sub = client.auth.onAuthStateChange(function (event, session) {
+          if (event === 'SIGNED_IN' && session) {
+            clearTimeout(timeout);
+            sub.data.subscription.unsubscribe();
+            window.location.replace('../profile.html');
+          }
+          if (event === 'SIGNED_OUT') {
+            clearTimeout(timeout);
+            showError('Autenticação cancelada. Tente novamente.');
+          }
+        });
+
+        // Also check if session already exists (race condition — supabase-js
+        // may have set it synchronously before onAuthStateChange fires)
+        client.auth.getSession().then(function (result) {
+          if (result.data && result.data.session) {
+            clearTimeout(timeout);
+            window.location.replace('../profile.html');
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

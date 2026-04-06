@@ -15,15 +15,23 @@
         <button id="signout-btn" class="px-3 py-2 bg-red-600 text-white rounded">Sair</button>
       </div>
 
-      <section id="profile-section" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 bg-gray-50 rounded">
-          <h2 class="font-medium">Dados do usuário</h2>
-          <p id="user-id" class="text-sm text-gray-700 mt-2"></p>
-          <p id="user-email" class="text-sm text-gray-700"></p>
+      <section id="profile-section" class="space-y-4">
+        <div class="flex items-center gap-4 p-4 bg-gray-50 rounded">
+          <img id="user-avatar" src="" alt="" class="w-14 h-14 rounded-full object-cover hidden" />
+          <div>
+            <p id="user-name" class="font-medium text-gray-900"></p>
+            <p id="user-email" class="text-sm text-gray-500"></p>
+            <p id="user-provider" class="text-xs text-gray-400 mt-0.5"></p>
+          </div>
         </div>
+
         <div class="p-4 bg-gray-50 rounded">
-          <h2 class="font-medium">Metadados</h2>
-          <pre id="user-meta" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+          <h2 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Metadados</h2>
+          <dl id="user-meta" class="divide-y divide-gray-100"></dl>
+        </div>
+
+        <div class="p-4 bg-gray-50 rounded">
+          <p class="text-xs text-gray-400">ID: <span id="user-id" class="font-mono"></span></p>
         </div>
       </section>
 

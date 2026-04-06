@@ -188,16 +188,14 @@
     const redirectUrl = window.location.protocol + '//' + host + port + '/reset-password.html';
 
     if (supabase.auth && typeof supabase.auth.resetPasswordForEmail === 'function') {
-      // Force redirect to local static site on port 8000 for development
-      const forcedRedirect = 'http://localhost:8000/reset-password.html';
-      const res = await supabase.auth.resetPasswordForEmail(email, { redirectTo: forcedRedirect });
+      // Use dynamic redirect URL calculated from current origin
+      const res = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
       console.debug('authResetPassword (supabase.auth.resetPasswordForEmail) returned:', res);
       return res;
     }
     if (supabase.auth && typeof supabase.auth.api !== 'undefined' && typeof supabase.auth.api.resetPasswordForEmail === 'function') {
-      // v1 compat - force same redirect
-      const forcedRedirect = 'http://localhost:8000/reset-password.html';
-      const res = await supabase.auth.api.resetPasswordForEmail(email, { redirectTo: forcedRedirect });
+      // v1 compat - use dynamic redirect URL
+      const res = await supabase.auth.api.resetPasswordForEmail(email, { redirectTo: redirectUrl });
       console.debug('authResetPassword (supabase.auth.api.resetPasswordForEmail) returned:', res);
       return res;
     }
@@ -220,6 +218,23 @@
     throw new Error('Método de atualização de senha não suportado pela versão do supabase-js carregada');
   }
 
+  async function authSignInWithOAuth(provider) {
+    if (!supabase) initSupabase();
+    if (!supabase) throw new Error('Supabase não inicializado');
+
+    // Build callback URL relative to server root
+    let host = window.location.hostname;
+    if (host === '::' || host === '[::]' || host === '') host = 'localhost';
+    const port = window.location.port ? (':' + window.location.port) : '';
+    const callbackUrl = window.location.protocol + '//' + host + port + '/auth/callback.html';
+
+    const options = { redirectTo: callbackUrl };
+    // Apple requires 'name email' scopes to receive the user's email address
+    if (provider === 'apple') options.scopes = 'name email';
+
+    return await supabase.auth.signInWithOAuth({ provider, options });
+  }
+
   async function setSessionFromUrl() {
     if (!supabase) initSupabase();
     if (!supabase) return null;
@@ -233,10 +248,27 @@
 
     if (accessToken && refreshToken && supabase.auth && typeof supabase.auth.setSession === 'function') {
       try {
-        const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        console.group('Auth setSessionFromUrl');
+        console.debug('Tokens found in URL, attempting to establish session...');
+        
+        // Add a safety timeout to avoid hanging the UI
+        const sessionPromise = supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: supabase.auth.setSession demorou muito a responder')), 15000)
+        );
+
+        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
+        
         if (error) {
-          console.error('setSessionFromUrl error', error);
+          console.error('Erro no setSession (Supabase):', {
+            message: error.message,
+            status: error.status,
+            name: error.name
+          });
+        } else {
+          console.log('Sessão estabelecida com sucesso:', data.session?.user?.id);
         }
+
         // Clean hash to avoid leaking tokens in URL
         try {
           if (window.history && window.history.replaceState) {
@@ -247,9 +279,11 @@
         } catch (e) {
           // ignore
         }
+        console.groupEnd();
         return { data, error };
       } catch (e) {
-        console.error('setSessionFromUrl caught', e);
+        console.error('Excessão capturada em setSessionFromUrl:', e);
+        console.groupEnd();
         return { data: null, error: e };
       }
     }
@@ -424,9 +458,16 @@
     const resetForm = document.getElementById('reset-form');
     if (resetForm) {
       (async () => {
-        await setSessionFromUrl();
+        const { data, error: sessionErr } = await (setSessionFromUrl() || { data: null, error: null });
         const errEl = document.getElementById('reset-error');
         const successEl = document.getElementById('reset-success');
+
+        if (sessionErr) {
+          errEl.textContent = 'Este link de recuperação expirou ou é inválido. Tente solicitar um novo email.';
+        } else if (!data?.session) {
+          // Se não há sessão e não há erro de parsing, o link pode ser inválido ou incompleto
+          console.warn('Nenhuma sessão ativa encontrada após processar URL de reset.');
+        }
 
         resetForm.addEventListener('submit', async (ev) => {
           ev.preventDefault();
@@ -477,16 +518,68 @@
           }
           const userData = await authGetUser();
           const user = userData.user;
-          document.getElementById('user-id').textContent = 'ID: ' + (user?.id || '—');
-          document.getElementById('user-email').textContent = 'Email: ' + (user?.email || '—');
-          document.getElementById('user-meta').textContent = JSON.stringify(user?.user_metadata || {}, null, 2);
+          const meta = user?.user_metadata || {};
+
+          // Avatar
+          const avatarEl = document.getElementById('user-avatar');
+          if (avatarEl && meta.avatar_url) {
+            avatarEl.src = meta.avatar_url;
+            avatarEl.classList.remove('hidden');
+          }
+
+          // Header fields
+          document.getElementById('user-id').textContent = user?.id || '—';
+          document.getElementById('user-email').textContent = user?.email || '—';
+          const nameEl = document.getElementById('user-name');
+          if (nameEl) nameEl.textContent = meta.full_name || meta.name || user?.email || '—';
+
+          // Provider badge
+          const providerEl = document.getElementById('user-provider');
+          if (providerEl) {
+            const provider = user?.app_metadata?.provider || 'email';
+            providerEl.textContent = 'Login via: ' + provider;
+          }
+
+          // Metadata list
+          const metaEl = document.getElementById('user-meta');
+          if (metaEl) {
+            const skip = new Set(['avatar_url']);
+            const entries = Object.entries(meta).filter(([k]) => !skip.has(k));
+            if (entries.length === 0) {
+              metaEl.innerHTML = '<p class="text-sm text-gray-400 py-2">Sem metadados.</p>';
+            } else {
+              metaEl.innerHTML = entries.map(([k, v]) => {
+                const label = k.replace(/_/g, ' ');
+                const value = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                return [
+                  '<div class="flex justify-between py-2 gap-4 text-sm">',
+                  '  <dt class="text-gray-500 capitalize shrink-0">' + label + '</dt>',
+                  '  <dd class="text-gray-900 text-right break-all">' + value + '</dd>',
+                  '</div>'
+                ].join('');
+              }).join('');
+            }
+          }
 
           // Try fetch extra profile from 'users' table (optional)
           try {
             const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('id', user.id).single();
             if (!profileErr && profile) {
               const metaEl = document.getElementById('user-meta');
-              metaEl.textContent = JSON.stringify({ ...user.user_metadata, profile }, null, 2);
+              const extra = Object.entries(profile).filter(([k]) => !['id'].includes(k));
+              if (metaEl && extra.length > 0) {
+                const extraHtml = extra.map(([k, v]) => {
+                  const label = k.replace(/_/g, ' ');
+                  const value = typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—');
+                  return [
+                    '<div class="flex justify-between py-2 gap-4 text-sm border-t border-gray-100">',
+                    '  <dt class="text-gray-500 capitalize shrink-0">' + label + '</dt>',
+                    '  <dd class="text-gray-900 text-right break-all">' + value + '</dd>',
+                    '</div>'
+                  ].join('');
+                }).join('');
+                metaEl.insertAdjacentHTML('beforeend', extraHtml);
+              }
             }
           } catch (e) {
             // ignore optional
@@ -496,6 +589,27 @@
         }
       })();
     }
+
+    // OAuth social login buttons
+    ['google', 'apple'].forEach((provider) => {
+      const btn = document.getElementById('oauth-btn-' + provider);
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const errEl = document.getElementById('signin-error');
+        if (errEl) errEl.textContent = '';
+        const client = initSupabase();
+        if (!client) {
+          if (errEl) errEl.textContent = 'Supabase não configurado.';
+          return;
+        }
+        try {
+          const { error } = await authSignInWithOAuth(provider);
+          if (error && errEl) errEl.textContent = error.message || String(error);
+        } catch (err) {
+          if (errEl) errEl.textContent = err.message || String(err);
+        }
+      });
+    });
 
     // Sign out
     const signoutBtn = document.getElementById('signout-btn');
